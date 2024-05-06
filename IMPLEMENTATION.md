@@ -7,35 +7,47 @@ This implementation (probably) won't work with highly available Redis deployment
 ## Used keys in Redis
 - `ref_count:{bucket-name}:{sha256-hash} {val}`: File with the sha256-hash is referenced `val` times.
 - `ref_file:{bucket-name}:{path} {sha256-hash}`: File with the path has the sha256-hash.
+- `lock:{bucket-name}:{sha256-hash} 1 EX 60 NX`: Lock for the file with the sha256-hash.
+Used when deleting, uploading or overwriting the file. Get doesn't have to care about the lock, because S3 should be strictly consistent. 
 - `modified:{bucket-name}:{path} {last_modified}`: File with the path has the last_modified version.
 
 ## `PUT /files/{path}`
 
 ### How the proxy handles this request:
-1. Check if the server has newer version of the file than the one being uploaded (`GET modified:{bucket-name}:{path}`).
-If it does, do nothing.
-2. Check if ref-count to the file is 0. If it is, it means that this file is during the process of being deleted -- 
-wait for the ref-count to be deleted.
-LUA script for checking if the proxy can upload the file:
+1. Check if the proxy can add the file with the script:
 ```lua
-ref_count = redis.call('GET', 'ref_count:' .. KEYS[1] .. ':' .. KEYS[2]) -- Check if the file exists
-if ref_count == nil then  -- The file does not exist, set ref_count to 0 to indicate that the file is being processed.
-    redis.Call('SET', 'ref_count:' .. KEYS[1] .. ':' .. KEYS[2], 0, 'EX', 60) -- Set the timeout in case the client crashes.
-    return 1
+local bucketName = KEYS[1]
+local hash = KEYS[2]
+local last_modified = ARGV[1]
+
+local db_modified = redis.call('GET', 'modified:' .. bucketName .. ':' .. hash)
+local ref_count = redis.call('GET', 'ref_count:' .. bucketName .. ':' .. hash) -- Check if the file exists
+if ref_count == nil or (db_modified != nill and db_modified < last_modified) then
+    -- The file does not exist or the file is older than the one being uploaded.
+    local ok = redis.call('SET', 'lock:' .. bucketName .. ':' .. hash, 1, 'EX', 60, 'NX') -- Lock the file to prevent other clients from editing it.
+    if ok == nil then
+        return 0 -- The file is being processed by another client
+    end
+    return 1 -- The file can be uploaded
 end
-if ref_count == 0 then
-    return 0
-end
-return 2
+return 2 -- The file is newer than the one being uploaded
 ```
-Running: `EVAL <script> 2 {bucket-name} {sha256-hash}`
-If the result is 0, wait and go to step 1.
-3. If the file does not exist on s3 (the script returned `1`), upload the file to s3.
+Running: `EVAL <script> 2 {bucket-name} {sha256-hash} {last_modified}`. \
+If the returned value is `0`, the file is being processed by another client, go to step 1. \
+If the returned value is `1`, the file can be uploaded. \
+If the returned value is `2`, the existing file is newer than the one being uploaded, exit with 200 (or sth). 
+
+3. Upload the file to s3.
 4. Add the file to db atomically:
 ```lua
-redis.Call('INCR', 'ref_count:' .. KEYS[1] .. ':' .. KEYS[2])
-redis.Call('SET', 'ref_file:' .. KEYS[1] .. ':' .. KEYS[3], KEYS[2])
-redis.Call('SET', 'modified:' .. KEYS[1] .. ':' .. KEYS[3], ARGV[1])
+local bucketName = KEYS[1]
+local hash = KEYS[2]
+local path = KEYS[3]
+local last_modified = ARGV[1]
+redis.call('INCR', 'ref_count:' .. bucketName .. ':' .. hash)
+redis.call('SET', 'ref_file:' .. bucketName .. ':' .. path, hash)
+redis.call('SET', 'modified:' .. bucketName .. ':' .. path, last_modified)
+redis.call('DEL', 'lock:' .. bucketName .. ':' .. hash)
 ```
 Running: `EVAL <script> 3 {bucket-name} {sha256-hash} {path} {last_modified}`.
 
@@ -45,30 +57,46 @@ Running: `EVAL <script> 3 {bucket-name} {sha256-hash} {path} {last_modified}`.
 1. Check if the file exists in the db (`EXISTS ref_file:{bucket-name}:{path}`) 
 and it is uploaded (`GET ref_count:{bucket-name}:{sha256-hash}` should return more than zero). If it doesn't, return 404.
 2. Check if the file has newer version (`GET modified:{bucket-name}:{path}`). If it does, do nothing.
-2. Decrement the ref-count with the script:
+3. Check if the file can be deleted with the script: 
 ```lua
-ref_count = redis.call('DECR', 'ref_count:' .. KEYS[1] .. ':' .. KEYS[2])
-if ref_count == 0 then -- The file is not referenced anymore, set the ref_count to 0 to indicate that the file is being processed.
-    redis.call('EXPIRE', 'ref_count:' .. KEYS[1] .. ':' .. KEYS[2], 60) -- Set the timeout in case the client crashes.
+local bucketName = KEYS[1]
+local hash = KEYS[2]
+ref_count = redis.call('DECR', 'ref_count:' .. bucketName .. ':' .. hash)
+if ref_count == 0 then -- The file is not referenced anymore, set the lock for the file to prevent other clients from processing it.
+    ret = redis.Call('SET', 'lock:' .. bucketName .. ':' .. hash, 1, 'EX', 60, 'NX')
+    if ret == nil then
+        return 0
+    end
     return 1
 end
-return 0
+return 2
 ```
-Running: `EVAL <script> 2 {bucket-name} {sha256-hash}`
-If the script returns `0`, the file doesn't need deleting. Go to step 4, otherwise go to step 3.
-3. Remove the file from s3. Remove the ref-count and the referenced file from the db:
+Running: `EVAL <script> 2 {bucket-name} {sha256-hash}` \
+If the returned value is `0`, the file is being processed by another client, go to step 3. \
+If the returned value is `1`, the file can be deleted, go to step 4. \
+If the returned value is `2`, the file is still referenced, go to step 5.
+
+4. Remove the file from s3. Remove the ref-count and the referenced file from the db:
 ```lua
-redis.call('DEL', 'ref_count:' .. KEYS[1] .. ':' .. KEYS[2])
-redis.call('DEL', 'ref_file:' .. KEYS[1] .. ':' .. KEYS[3])
-redis.call('DEL', 'modified:' .. KEYS[1] .. ':' .. KEYS[2])
+local bucketName = KEYS[1]
+local hash = KEYS[2]
+local path = KEYS[3]
+redis.call('DEL', 'ref_count:' .. bucketName .. ':' .. hash)
+redis.call('DEL', 'ref_file:' .. bucketName .. ':' .. path)
+redis.call('DEL', 'modified:' .. bucketName .. ':' .. hash)
+redis.call('DEL', 'lock:' .. bucketName .. ':' .. hash)
 ```
 Running: `EVAL <script> 3 {bucket-name} {sha256-hash} {path}`.
-This scripts atomically removes the ref-count and the referenced file from the db. Return with 200 (or sth).
-4. Remove the file from the db:
+This scripts atomically removes the lock, ref-count and the referenced file from the db. Return with 200 (or sth).
+
+5. Remove the file from the db:
 ```lua
-redis.call('DECR', 'ref_count:' .. KEYS[1] .. ':' .. KEYS[2])
-redis.call('DEL', 'ref_file:' .. KEYS[1] .. ':' .. KEYS[3])
-redis.call('DEL', 'modified:' .. KEYS[1] .. ':' .. KEYS[2])
+local bucketName = KEYS[1]
+local hash = KEYS[2]
+local path = KEYS[3]
+redis.call('DECR', 'ref_count:' .. bucketName .. ':' .. hash)
+redis.call('DEL', 'ref_file:' .. bucketName .. ':' .. path)
+redis.call('DEL', 'modified:' .. bucketName .. ':' .. hash)
 ```
 Running: `EVAL <script> 3 {bucket-name} {sha256-hash} {path}`.
 
