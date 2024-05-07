@@ -56,16 +56,15 @@ func DeleteFile(bucketName string, hash string, path string, last bool) error {
 			local path = KEYS[3]
 			redis.call('DEL', 'ref_count:' .. bucketName .. ':' .. hash)
 			redis.call('DEL', 'ref_file:' .. bucketName .. ':' .. path)
-			redis.call('DEL', 'modified:' .. bucketName .. ':' .. hash)
+			redis.call('DEL', 'modified:' .. bucketName .. ':' .. path)
 		`)
 	} else {
 		function = redis.NewScript(`
 			local bucketName = KEYS[1]
 			local hash = KEYS[2]
 			local path = KEYS[3]
-			redis.call('DECR', 'ref_count:' .. bucketName .. ':' .. hash)
 			redis.call('DEL', 'ref_file:' .. bucketName .. ':' .. path)
-			redis.call('DEL', 'modified:' .. bucketName .. ':' .. hash)
+			redis.call('DEL', 'modified:' .. bucketName .. ':' .. path)
 		`)
 	}
 	return function.Run(redisContext, rdb, []string{bucketName, hash, path}).Err()
