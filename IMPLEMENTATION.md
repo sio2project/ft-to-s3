@@ -5,7 +5,8 @@ The S3 server must guarantee strict consistency for the protocol to work correct
 This implementation (probably) won't work with highly available Redis deployments.
 
 ## Used keys in Redis
-- `ref_count:{bucket-name}:{sha256-hash} {val}`: File with the sha256-hash is referenced `val` times.
+- `ref_count:{bucket-name}:{sha256-hash} {val}`: File with the sha256-hash is referenced by `val` files.
+  When `val` is 0, it means that the file is in the process of being deleted/added (more below). It acts as an exclusive lock.
 - `ref_file:{bucket-name}:{path} {sha256-hash}`: File with the path has the sha256-hash.
 - `modified:{bucket-name}:{path} {last_modified}`: File with the path has the last_modified version.
 
@@ -73,7 +74,7 @@ local hash = KEYS[2]
 local path = KEYS[3]
 redis.call('DEL', 'ref_count:' .. bucketName .. ':' .. hash)
 redis.call('DEL', 'ref_file:' .. bucketName .. ':' .. path)
-redis.call('DEL', 'modified:' .. bucketName .. ':' .. hash)
+redis.call('DEL', 'modified:' .. bucketName .. ':' .. path)
 ```
 Running: `EVAL <script> 3 {bucket-name} {sha256-hash} {path}`.
 This scripts atomically removes the ref-count and the referenced file from the db. Return with 200 (or sth).
@@ -82,9 +83,8 @@ This scripts atomically removes the ref-count and the referenced file from the d
 local bucketName = KEYS[1]
 local hash = KEYS[2]
 local path = KEYS[3]
-redis.call('DECR', 'ref_count:' .. bucketName .. ':' .. hash)
 redis.call('DEL', 'ref_file:' .. bucketName .. ':' .. path)
-redis.call('DEL', 'modified:' .. bucketName .. ':' .. hash)
+redis.call('DEL', 'modified:' .. bucketName .. ':' .. path)
 ```
 Running: `EVAL <script> 3 {bucket-name} {sha256-hash} {path}`.
 
