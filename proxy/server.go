@@ -3,7 +3,7 @@ package proxy
 import (
 	"context"
 	"errors"
-	"log"
+	"fmt"
 	"net"
 	"net/http"
 
@@ -11,23 +11,20 @@ import (
 	"github.com/sio2project/ft-to-s3/v1/utils"
 )
 
-const instance = "proxy"
-
 func createHandlers(mux *http.ServeMux) {
-	pathToHandler := map[string]func(http.ResponseWriter, *http.Request, *utils.Logger){
+	pathToHandler := map[string]func(http.ResponseWriter, *http.Request, utils.LoggerObject){
 		"/version": handlers.Version,
 	}
 
 	for path, handler := range pathToHandler {
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			instance := ctx.Value(instance).(utils.Instance)
-			logger := utils.Logger(instance.BucketName)
+			instance := ctx.Value("instance").(utils.Instance)
+			logger := utils.NewBucketLogger(instance.BucketName)
 
 			w.Header().Set("Status-Code", "200")
-			logger.Println("Request", r.URL.Path)
-			handler(w, r, &logger)
-			logger.Println("Request "+r.URL.Path+"  -  status code", w.Header().Get("Status-Code"))
+			handler(w, r, logger)
+			logger.Info("Request", r.URL.Path, "- status code", w.Header().Get("Status-Code"))
 		})
 	}
 }
@@ -43,7 +40,7 @@ func Start(config *utils.Config) {
 			Addr:    inst.Port,
 			Handler: mux,
 			BaseContext: func(listener net.Listener) context.Context {
-				return context.WithValue(ctx, instance, inst)
+				return context.WithValue(ctx, "instance", inst)
 			},
 		}
 		servers = append(servers, server)
@@ -52,7 +49,7 @@ func Start(config *utils.Config) {
 	for _, server := range servers {
 		go func(server *http.Server) {
 			if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-				log.Println(err)
+				utils.MainLogger.Error(fmt.Sprintf("Server on port %s failed to start: %+v", server.Addr, err))
 			}
 			cancel()
 		}(server)

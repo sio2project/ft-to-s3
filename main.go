@@ -18,6 +18,8 @@ func main() {
 	}
 	config := utils.LoadConfig(configPath)
 
+	utils.ConfigureLogging(&config.Logging)
 	db.StartClient(&config.Redis)
 	proxy.Start(config)
+
 }

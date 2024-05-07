@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"io"
 	"os"
-
-	"github.com/sio2project/ft-to-s3/v1/db"
 )
 
 type Instance struct {
@@ -13,9 +11,21 @@ type Instance struct {
 	BucketName string `json:"bucketName"`
 }
 
+type RedisConfig struct {
+	Address  string `json:"address"`
+	Password string `json:"password"`
+	DB       int    `json:"db"`
+}
+
+type LoggingConfig struct {
+	Level string `json:"level"`
+	File  string `json:"file"`
+}
+
 type Config struct {
-	Instances []Instance     `json:"instances"`
-	Redis     db.RedisConfig `json:"db"`
+	Instances []Instance    `json:"instances"`
+	Redis     RedisConfig   `json:"db"`
+	Logging   LoggingConfig `json:"logging"`
 }
 
 func LoadConfig(configPath string) *Config {

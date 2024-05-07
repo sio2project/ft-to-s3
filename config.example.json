@@ -13,5 +13,9 @@
     "address": "localhost:6379",
     "password": "",
     "db": 0
+  },
+  "logging": {
+    "level": "info",
+    "file": "/path/to/logfile.log"
   }
 }
