@@ -1,0 +1,21 @@
+{
+  "instances": [
+    {
+      "port": ":8080",
+      "bucketName": "my-bucket"
+    },
+    {
+      "port": ":8081",
+      "bucketName": "my-bucket2"
+    }
+  ],
+  "redis": {
+    "address": "localhost:6379",
+    "password": "",
+    "db": 0
+  },
+  "logging": {
+    "level": "info",
+    "file": "/path/to/logfile.log"
+  }
+}
