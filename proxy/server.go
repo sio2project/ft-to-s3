@@ -11,19 +11,25 @@ import (
 	"github.com/sio2project/ft-to-s3/v1/utils"
 )
 
+type handler struct {
+	path   string
+	handle func(http.ResponseWriter, *http.Request, *utils.LoggerObject, string)
+}
+
 func createHandlers(mux *http.ServeMux) {
-	pathToHandler := map[string]func(http.ResponseWriter, *http.Request, utils.LoggerObject){
-		"/version": handlers.Version,
+	handlersArr := []handler{
+		{"/version", handlers.Version},
+		{"/files/", handlers.Files},
 	}
 
-	for path, handler := range pathToHandler {
-		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+	for _, h := range handlersArr {
+		mux.HandleFunc(h.path, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			instance := ctx.Value("instance").(utils.Instance)
 			logger := utils.NewBucketLogger(instance.BucketName)
 
 			w.Header().Set("Status-Code", "200")
-			handler(w, r, logger)
+			h.handle(w, r, &logger, instance.BucketName)
 			logger.Info("Request", r.URL.Path, "- status code", w.Header().Get("Status-Code"))
 		})
 	}
