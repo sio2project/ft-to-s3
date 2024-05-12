@@ -1,4 +1,6 @@
 ft-to-s3
 data
+minio-data
+etcd-data
 .idea
 config.json
