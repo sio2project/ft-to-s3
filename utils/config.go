@@ -17,6 +17,12 @@ type RedisConfig struct {
 	DB       int    `json:"db"`
 }
 
+type EtcdConfig struct {
+	Endpoints   []string `json:"endpoints"`
+	DialTimeout int      `json:"dialTimeout"`
+	SessionTTL  int      `json:"sessionTTL"`
+}
+
 type LoggingConfig struct {
 	Level string `json:"level"`
 	File  string `json:"file"`
@@ -24,7 +30,7 @@ type LoggingConfig struct {
 
 type Config struct {
 	Instances []Instance    `json:"instances"`
-	Redis     RedisConfig   `json:"db"`
+	Etcd      EtcdConfig    `json:"etcd"`
 	Logging   LoggingConfig `json:"logging"`
 }
 
