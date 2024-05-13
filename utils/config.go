@@ -35,9 +35,6 @@ type Config struct {
 }
 
 func LoadConfig(configPath string) *Config {
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		panic("Config file does not exist")
-	}
 	confFile, err := os.Open(configPath)
 	if err != nil {
 		panic(err)
