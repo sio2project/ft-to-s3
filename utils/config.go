@@ -23,6 +23,13 @@ type EtcdConfig struct {
 	SessionTTL  int      `json:"sessionTTL"`
 }
 
+type MinioConfig struct {
+	Endpoint        string `json:"endpoint"`
+	AccessKeyID     string `json:"accessKeyID"`
+	SecretAccessKey string `json:"secret"`
+	UseSSL          bool   `json:"useSSL"`
+}
+
 type LoggingConfig struct {
 	Level string `json:"level"`
 	File  string `json:"file"`
@@ -31,6 +38,7 @@ type LoggingConfig struct {
 type Config struct {
 	Instances []Instance    `json:"instances"`
 	Etcd      EtcdConfig    `json:"etcd"`
+	Minio     MinioConfig   `json:"minio"`
 	Logging   LoggingConfig `json:"logging"`
 }
 

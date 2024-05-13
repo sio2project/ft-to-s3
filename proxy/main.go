@@ -3,6 +3,7 @@ package proxy
 import (
 	"flag"
 	"github.com/sio2project/ft-to-s3/v1/db"
+	"github.com/sio2project/ft-to-s3/v1/storage"
 	"github.com/sio2project/ft-to-s3/v1/utils"
 	"os"
 )
@@ -22,5 +23,6 @@ func Main() {
 
 	utils.ConfigureLogging(&config.Logging)
 	db.Configure(&config.Etcd)
+	storage.Configure(config)
 	Start(config)
 }

@@ -54,6 +54,7 @@ func Start(config *utils.Config) {
 
 	for _, server := range servers {
 		go func(server *http.Server) {
+			utils.MainLogger.Info(fmt.Sprintf("Starting server on port %s", server.Addr))
 			if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 				utils.MainLogger.Error(fmt.Sprintf("Server on port %s failed to start: %+v", server.Addr, err))
 			}
