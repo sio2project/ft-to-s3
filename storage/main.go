@@ -49,11 +49,7 @@ func Store(bucketName string, logger *utils.LoggerObject, path string, reader io
 		}
 	}
 
-	logger.Debug("sha256: ", sha256Digest)
-	logger.Debug("logicalSize: ", logicalSize)
-	options := minio.PutObjectOptions{
-		ContentType: "application/text",
-	}
+	options := minio.PutObjectOptions{}
 	if sha256Digest == "" || logicalSize == -1 {
 		var data []byte
 		if compressed {
@@ -72,9 +68,6 @@ func Store(bucketName string, logger *utils.LoggerObject, path string, reader io
 
 		sha256Digest = utils.Sha256Checksum(data)
 		logicalSize = int64(len(data))
-		logger.Debug("Calculated sha256Digest", sha256Digest)
-		logger.Debug("Calculated logicalSize", logicalSize)
-
 		reader = bytes.NewReader(data)
 	}
 	if compressed {
@@ -107,25 +100,24 @@ func Store(bucketName string, logger *utils.LoggerObject, path string, reader io
 		_, err = minio.PutObject(context.Background(), bucketName, sha256Digest, reader, size, options)
 		if err != nil {
 			fileMutex.Unlock(context.Background())
-			logger.Debug("huh")
 			return 0, err
 		}
+	}
 
-		logger.Info("Putting refFile")
-		refFile := getRefFileName(bucketName, path)
-		_, err = etcd.Put(etcd.Ctx(), refFile, sha256Digest)
-		if err != nil {
-			fileMutex.Unlock(context.Background())
-			return 0, err
-		}
+	logger.Info("Putting refFile")
+	refFile := getRefFileName(bucketName, path)
+	_, err = etcd.Put(etcd.Ctx(), refFile, sha256Digest)
+	if err != nil {
+		fileMutex.Unlock(context.Background())
+		return 0, err
+	}
 
-		logger.Info("Putting refCount")
-		modified := getModifiedName(bucketName, path)
-		_, err = etcd.Put(etcd.Ctx(), modified, strconv.FormatInt(version, 10))
-		if err != nil {
-			fileMutex.Unlock(context.Background())
-			return 0, err
-		}
+	logger.Info("Putting refCount")
+	modified := getModifiedName(bucketName, path)
+	_, err = etcd.Put(etcd.Ctx(), modified, strconv.FormatInt(version, 10))
+	if err != nil {
+		fileMutex.Unlock(context.Background())
+		return 0, err
 	}
 
 	_, err = etcd.Put(etcd.Ctx(), refCountName, strconv.Itoa(refCount+1))
