@@ -8,5 +8,6 @@ import (
 
 func Version(w http.ResponseWriter, _ *http.Request, _ *utils.LoggerObject, _ string) {
 	set_content_type_json(w)
+	w.WriteHeader(http.StatusOK)
 	_, _ = fmt.Fprint(w, `{"protocol_versions": [2]}`)
 }

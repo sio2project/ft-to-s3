@@ -28,7 +28,6 @@ func createHandlers(mux *http.ServeMux) {
 			instance := ctx.Value("instance").(utils.Instance)
 			logger := utils.NewBucketLogger(instance.BucketName)
 
-			w.Header().Set("Status-Code", "200")
 			h.handle(w, r, &logger, instance.BucketName)
 			logger.Info("Request", r.URL.Path, "- status code", w.Header().Get("Status-Code"))
 		})
