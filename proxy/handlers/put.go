@@ -17,7 +17,7 @@ func Put(w http.ResponseWriter, r *http.Request, logger *utils.LoggerObject, buc
 		w.Write([]byte("\"?last-modified=\" is required"))
 		return
 	}
-	lastModified, err := fromRFC2822(lastModifiedRFC)
+	lastModified, err := FromRFC2822(lastModifiedRFC)
 	if err != nil {
 		logger.Error("Error", err)
 		w.WriteHeader(http.StatusBadRequest)

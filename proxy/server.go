@@ -16,6 +16,8 @@ type handler struct {
 	handle func(http.ResponseWriter, *http.Request, *utils.LoggerObject, string)
 }
 
+var servers []*http.Server
+
 func createHandlers(mux *http.ServeMux) {
 	handlersArr := []handler{
 		{"/version", handlers.Version},
@@ -23,6 +25,7 @@ func createHandlers(mux *http.ServeMux) {
 	}
 
 	for _, h := range handlersArr {
+		utils.MainLogger.Debug(fmt.Sprintf("Creating handler for %s", h.path))
 		mux.HandleFunc(h.path, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			instance := ctx.Value("instance").(utils.Instance)
@@ -39,7 +42,7 @@ func Start(config *utils.Config) {
 	createHandlers(mux)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	servers := make([]*http.Server, 0, len(config.Instances))
+	servers = make([]*http.Server, 0, len(config.Instances))
 	for _, inst := range config.Instances {
 		server := &http.Server{
 			Addr:    inst.Port,
@@ -62,4 +65,12 @@ func Start(config *utils.Config) {
 	}
 
 	<-ctx.Done()
+}
+
+func Stop() {
+	for _, server := range servers {
+		if err := server.Shutdown(context.Background()); err != nil {
+			utils.MainLogger.Error(fmt.Sprintf("Server on port %s failed to stop: %+v", server.Addr, err))
+		}
+	}
 }
