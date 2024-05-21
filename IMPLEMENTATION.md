@@ -40,12 +40,18 @@ If the result is 0, wait and go to step 1.
 local bucketName = KEYS[1]
 local hash = KEYS[2]
 local path = KEYS[3]
+local code = KEYS[4]
 local last_modified = ARGV[1]
-redis.call('INCR', 'ref_count:' .. bucketName .. ':' .. hash)
+if code == 1 then  -- New file, use SET to clear the expiration timer.
+    redis.call('SET', 'ref_count:' .. bucketName .. ':' .. hash, 1)
+else
+    redis.call('INCR', 'ref_count:' .. bucketName .. ':' .. hash)
+end
 redis.call('SET', 'ref_file:' .. bucketName .. ':' .. path, hash)
 redis.call('SET', 'modified:' .. bucketName .. ':' .. path, last_modified)
 ```
-Running: `EVAL <script> 3 {bucket-name} {sha256-hash} {path} {last_modified}`.
+Running: `EVAL <script> 4 {bucket-name} {sha256-hash} {path} {code} {last_modified}`  
+Where `code` is the return code of the script from step 2.
 
 ##  `DELETE /files/{path}`
 
