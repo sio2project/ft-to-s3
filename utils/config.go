@@ -17,6 +17,19 @@ type RedisConfig struct {
 	DB       int    `json:"db"`
 }
 
+type EtcdConfig struct {
+	Endpoints   []string `json:"endpoints"`
+	DialTimeout int      `json:"dialTimeout"`
+	SessionTTL  int      `json:"sessionTTL"`
+}
+
+type MinioConfig struct {
+	Endpoint        string `json:"endpoint"`
+	AccessKeyID     string `json:"accessKeyID"`
+	SecretAccessKey string `json:"secret"`
+	UseSSL          bool   `json:"useSSL"`
+}
+
 type LoggingConfig struct {
 	Level string `json:"level"`
 	File  string `json:"file"`
@@ -24,14 +37,12 @@ type LoggingConfig struct {
 
 type Config struct {
 	Instances []Instance    `json:"instances"`
-	Redis     RedisConfig   `json:"db"`
+	Etcd      EtcdConfig    `json:"etcd"`
+	Minio     MinioConfig   `json:"minio"`
 	Logging   LoggingConfig `json:"logging"`
 }
 
 func LoadConfig(configPath string) *Config {
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		panic("Config file does not exist")
-	}
 	confFile, err := os.Open(configPath)
 	if err != nil {
 		panic(err)

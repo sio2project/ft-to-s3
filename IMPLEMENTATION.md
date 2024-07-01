@@ -47,6 +47,24 @@ redis.call('SET', 'modified:' .. bucketName .. ':' .. path, last_modified)
 ```
 Running: `EVAL <script> 3 {bucket-name} {sha256-hash} {path} {last_modified}`.
 
+#### How to make requests:
+
+File version must be specified in RFC 2822 format through ?last_modified= query parameter. 
+If the server has older file version, it will be overwritten. If the server has newer version, the operation will have no effect.
+
+If the operation is successful, the response will have Last-Modified header set to the version of the file under {path} 
+on the server after processing the request.
+
+Payload should be compressed with gzip, and Content-Encoding: gzip header must be set if it is.
+
+SHA256-Checksum header should be set to hexadecimal representation of SHA256 digest of file before compression.
+
+Logical-Size header should be set to logical file size in bytes (before compression).
+
+NOTE: three headers above related to compression are optional, but performance may suffer if any of them is not set, 
+so this should be only used while testing.
+
+
 ##  `DELETE /files/{path}`
 
 ### How the proxy handles this request:

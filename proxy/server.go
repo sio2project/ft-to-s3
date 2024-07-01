@@ -11,19 +11,27 @@ import (
 	"github.com/sio2project/ft-to-s3/v1/utils"
 )
 
+type handler struct {
+	path   string
+	handle func(http.ResponseWriter, *http.Request, *utils.LoggerObject, string)
+}
+
+var servers []*http.Server
+
 func createHandlers(mux *http.ServeMux) {
-	pathToHandler := map[string]func(http.ResponseWriter, *http.Request, utils.LoggerObject){
-		"/version": handlers.Version,
+	handlersArr := []handler{
+		{"/version", handlers.Version},
+		{"/files/", handlers.Files},
 	}
 
-	for path, handler := range pathToHandler {
-		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+	for _, h := range handlersArr {
+		utils.MainLogger.Debug(fmt.Sprintf("Creating handler for %s", h.path))
+		mux.HandleFunc(h.path, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			instance := ctx.Value("instance").(utils.Instance)
 			logger := utils.NewBucketLogger(instance.BucketName)
 
-			w.Header().Set("Status-Code", "200")
-			handler(w, r, logger)
+			h.handle(w, r, &logger, instance.BucketName)
 			logger.Info("Request", r.URL.Path, "- status code", w.Header().Get("Status-Code"))
 		})
 	}
@@ -34,7 +42,7 @@ func Start(config *utils.Config) {
 	createHandlers(mux)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	servers := make([]*http.Server, 0, len(config.Instances))
+	servers = make([]*http.Server, 0, len(config.Instances))
 	for _, inst := range config.Instances {
 		server := &http.Server{
 			Addr:    inst.Port,
@@ -48,6 +56,7 @@ func Start(config *utils.Config) {
 
 	for _, server := range servers {
 		go func(server *http.Server) {
+			utils.MainLogger.Info(fmt.Sprintf("Starting server on port %s", server.Addr))
 			if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 				utils.MainLogger.Error(fmt.Sprintf("Server on port %s failed to start: %+v", server.Addr, err))
 			}
@@ -56,4 +65,12 @@ func Start(config *utils.Config) {
 	}
 
 	<-ctx.Done()
+}
+
+func Stop() {
+	for _, server := range servers {
+		if err := server.Shutdown(context.Background()); err != nil {
+			utils.MainLogger.Error(fmt.Sprintf("Server on port %s failed to stop: %+v", server.Addr, err))
+		}
+	}
 }

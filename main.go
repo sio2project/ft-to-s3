@@ -1,25 +1,22 @@
 package main
 
 import (
-	"flag"
-	"log"
-
-	"github.com/sio2project/ft-to-s3/v1/db"
+	"github.com/sio2project/ft-to-s3/v1/migrate"
 	"github.com/sio2project/ft-to-s3/v1/proxy"
-	"github.com/sio2project/ft-to-s3/v1/utils"
+	"log"
+	"os"
 )
 
 func main() {
-	var configPath string
-	flag.StringVar(&configPath, "config", "", "Path to the config file")
-	flag.Parse()
-	if configPath == "" {
-		log.Fatal("Config file path is required")
+	if len(os.Args) < 2 {
+		log.Fatal("No arguments provided")
 	}
-	config := utils.LoadConfig(configPath)
-
-	utils.ConfigureLogging(&config.Logging)
-	db.StartClient(&config.Redis)
-	proxy.Start(config)
-
+	mode := os.Args[1]
+	if mode == "server" {
+		proxy.Main()
+	} else if mode == "migrate" {
+		migrate.Main()
+	} else {
+		log.Fatal("Invalid mode. First argument has to be one of: server, migrate")
+	}
 }
