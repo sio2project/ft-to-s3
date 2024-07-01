@@ -9,13 +9,17 @@
       "bucketName": "my-bucket2"
     }
   ],
-  "redis": {
-    "address": "localhost:6379",
-    "password": "",
-    "db": 0
+  "etcd": {
+    "endpoints": ["http://127.0.0.1:2379"],
+    "dialTimeout": 5
+  },
+  "minio": {
+    "endpoint": "127.0.0.1:9000",
+    "accessKeyID": "minio",
+    "secret": "minio123",
+    "useSSL": false
   },
   "logging": {
-    "level": "info",
-    "file": "/path/to/logfile.log"
+    "level": "info"
   }
 }
