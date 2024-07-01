@@ -16,15 +16,19 @@ func Store(bucketName string, logger *utils.LoggerObject, path string, reader io
 	defer session.Close()
 	fileMutex := db.GetMutex(session, bucketName+":"+path)
 	fileMutex.Lock(context.Background())
+	defer fileMutex.Unlock(context.Background())
 
 	dbModified, err := db.GetModified(bucketName, path)
 	if err != nil {
-		fileMutex.Unlock(context.Background())
 		return 0, err
 	}
 	if version <= dbModified {
-		fileMutex.Unlock(context.Background())
 		return dbModified, nil
+	}
+
+	oldFile, err := db.GetHashForPath(bucketName, path)
+	if err != nil {
+		return 0, err
 	}
 
 	options := minio.PutObjectOptions{}
@@ -33,13 +37,11 @@ func Store(bucketName string, logger *utils.LoggerObject, path string, reader io
 		if compressed {
 			data, err = utils.ReadGzip(reader)
 			if err != nil {
-				fileMutex.Unlock(context.Background())
 				return 0, err
 			}
 		} else {
 			data, err = io.ReadAll(reader)
 			if err != nil {
-				fileMutex.Unlock(context.Background())
 				return 0, err
 			}
 		}
@@ -54,7 +56,6 @@ func Store(bucketName string, logger *utils.LoggerObject, path string, reader io
 
 	refCount, err := db.GetRefCount(bucketName, sha256Digest)
 	if err != nil {
-		fileMutex.Unlock(context.Background())
 		return 0, err
 	}
 
@@ -64,7 +65,6 @@ func Store(bucketName string, logger *utils.LoggerObject, path string, reader io
 
 		_, err = minioClient.PutObject(context.Background(), bucketName, sha256Digest, reader, size, options)
 		if err != nil {
-			fileMutex.Unlock(context.Background())
 			return 0, err
 		}
 	}
@@ -72,23 +72,29 @@ func Store(bucketName string, logger *utils.LoggerObject, path string, reader io
 	logger.Info("Putting refFile")
 	err = db.SetHashForPath(bucketName, path, sha256Digest)
 	if err != nil {
-		fileMutex.Unlock(context.Background())
 		return 0, err
 	}
 
 	logger.Info("Putting refCount")
 	err = db.SetRefCount(bucketName, sha256Digest, refCount+1)
 	if err != nil {
-		fileMutex.Unlock(context.Background())
 		return 0, err
 	}
 
 	err = db.SetModified(bucketName, path, version)
 	if err != nil {
-		fileMutex.Unlock(context.Background())
 		return 0, err
 	}
 
-	fileMutex.Unlock(context.Background())
+	err = deleteByHash(bucketName, logger, oldFile, false)
+	if err != nil {
+		return 0, err
+	}
+
 	return version, nil
+}
+
+func deleteByHash(bucketName string, logger *utils.LoggerObject, path string, lock bool) error {
+	logger.Debug("DeleteByHash called on ", path)
+	return nil
 }

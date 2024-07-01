@@ -44,7 +44,7 @@ func GetMutex(session *concurrency.Session, key string) *concurrency.Mutex {
 }
 
 func GetModified(bucketName string, path string) (int64, error) {
-	resp, err := etcdClient.Get(etcdClient.Ctx(), getModifiedName(bucketName, path))
+	resp, err := etcdClient.Get(etcdClient.Ctx(), GetModifiedName(bucketName, path))
 	if err != nil {
 		return 0, err
 	}
@@ -55,12 +55,12 @@ func GetModified(bucketName string, path string) (int64, error) {
 }
 
 func SetModified(bucketName string, path string, modified int64) error {
-	_, err := etcdClient.Put(etcdClient.Ctx(), getModifiedName(bucketName, path), strconv.FormatInt(modified, 10))
+	_, err := etcdClient.Put(etcdClient.Ctx(), GetModifiedName(bucketName, path), strconv.FormatInt(modified, 10))
 	return err
 }
 
 func GetRefCount(bucketName string, sha256Digest string) (int, error) {
-	resp, err := etcdClient.Get(etcdClient.Ctx(), getRefCountName(bucketName, sha256Digest))
+	resp, err := etcdClient.Get(etcdClient.Ctx(), GetRefCountName(bucketName, sha256Digest))
 	if err != nil {
 		return 0, err
 	}
@@ -71,7 +71,7 @@ func GetRefCount(bucketName string, sha256Digest string) (int, error) {
 }
 
 func SetRefCount(bucketName string, sha256Digest string, count int) error {
-	_, err := etcdClient.Put(etcdClient.Ctx(), getRefCountName(bucketName, sha256Digest), strconv.Itoa(count))
+	_, err := etcdClient.Put(etcdClient.Ctx(), GetRefCountName(bucketName, sha256Digest), strconv.Itoa(count))
 	return err
 }
 
@@ -83,8 +83,19 @@ func IncrementRefCount(bucketName string, sha256Digest string) error {
 	return SetRefCount(bucketName, sha256Digest, refCount+1)
 }
 
+func DecrementRefCount(bucketName string, sha256Digest string) error {
+	refCount, err := GetRefCount(bucketName, sha256Digest)
+	if err != nil {
+		return err
+	}
+	if refCount == 0 {
+		return nil
+	}
+	return SetRefCount(bucketName, sha256Digest, refCount-1)
+}
+
 func GetHashForPath(bucketName string, path string) (string, error) {
-	resp, err := etcdClient.Get(etcdClient.Ctx(), getRefFileName(bucketName, path))
+	resp, err := etcdClient.Get(etcdClient.Ctx(), GetRefFileName(bucketName, path))
 	if err != nil {
 		return "", err
 	}
@@ -95,7 +106,7 @@ func GetHashForPath(bucketName string, path string) (string, error) {
 }
 
 func SetHashForPath(bucketName string, path string, sha256Digest string) error {
-	_, err := etcdClient.Put(etcdClient.Ctx(), getRefFileName(bucketName, path), sha256Digest)
+	_, err := etcdClient.Put(etcdClient.Ctx(), GetRefFileName(bucketName, path), sha256Digest)
 	return err
 }
 

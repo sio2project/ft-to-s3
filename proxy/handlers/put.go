@@ -56,6 +56,6 @@ func Put(w http.ResponseWriter, r *http.Request, logger *utils.LoggerObject, buc
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Last-Modified", toRFC2822(version))
+	w.WriteHeader(http.StatusOK)
 }
