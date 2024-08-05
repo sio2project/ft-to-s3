@@ -54,6 +54,18 @@ func GetModified(bucketName string, path string) (int64, error) {
 	return strconv.ParseInt(string(resp.Kvs[0].Value), 10, 64)
 }
 
+func GetKeys(prefix string) ([]string, error) {
+	resp, err := etcdClient.Get(etcdClient.Ctx(), prefix, clientv3.WithPrefix())
+	if err != nil {
+		return nil, err
+	}
+	keys := make([]string, 0)
+	for _, kv := range resp.Kvs {
+		keys = append(keys, string(kv.Key))
+	}
+	return keys, nil
+}
+
 func SetModified(bucketName string, path string, modified int64) error {
 	_, err := etcdClient.Put(etcdClient.Ctx(), GetModifiedName(bucketName, path), strconv.FormatInt(modified, 10))
 	return err

@@ -148,3 +148,26 @@ func Get(bucketName string, logger *utils.LoggerObject, path string) *GetResult 
 		LogicalSize:  info.Size,
 	}
 }
+
+func GetList(bucketName string, logger *utils.LoggerObject, path string, last_modified int64) ([]string, error) {
+	logger.Debug("storage.GetList called on", bucketName+":"+path)
+
+	prefix := db.GetModifiedName(bucketName, path)
+	keys, err := db.GetKeys(prefix)
+	if err != nil {
+		return nil, err
+	}
+
+	files := make([]string, 0)
+	for _, key := range keys {
+		modified, err := db.GetModified(bucketName, key)
+		if err != nil {
+			return nil, err
+		}
+		if modified > last_modified {
+			files = append(files, key)
+		}
+	}
+
+	return files, nil
+}
