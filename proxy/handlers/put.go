@@ -51,7 +51,7 @@ func Put(w http.ResponseWriter, r *http.Request, logger *utils.LoggerObject, buc
 		compressed, digest, logicalSize)
 
 	if err != nil {
-		logger.Error("Error", err)
+		logger.Error("Error while storing the file:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
